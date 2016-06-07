@@ -29,7 +29,7 @@ public class OOPMultipleControl {
 
     //TODO: fill in here :
     public Object invoke(String methodName, Object[] args)
-            throws OOPMultipleException, InvocationTargetException, IllegalAccessException, InstantiationException, NoSuchMethodException, ClassNotFoundException {
+            throws OOPMultipleException {
         Method[] methods = interfaceClass.getMethods();
         List<Method> compatiableMethods = new LinkedList<Method>();
         int argsLength = 0;
@@ -65,10 +65,36 @@ public class OOPMultipleControl {
             String interfaceName = theMethod.getDeclaringClass().getName();
             int lastDot = interfaceName.lastIndexOf('.');
             String clsName = interfaceName.substring(0, lastDot + 1) + "C" + interfaceName.substring(lastDot + 2, interfaceName.length());
-            Class<?> cls = Class.forName(clsName);
-            Constructor<?> constr = cls.getConstructor();
-            Object obj = constr.newInstance(new Object[]{});
-            return theMethod.invoke(obj, args);
+            Class<?> cls;
+            try {
+                cls = Class.forName(clsName);
+            } catch (ClassNotFoundException e)
+            {
+                throw new OOPInaccessibleMethod();
+            }
+            Constructor<?> constr;
+            try {
+                constr = cls.getConstructor();
+            } catch (NoSuchMethodException e)
+            {
+                throw new OOPInaccessibleMethod();
+            }
+            Object obj;
+            try{
+                obj = constr.newInstance(new Object[]{});
+            }
+            catch(Exception e)
+            {
+                throw new OOPInaccessibleMethod();
+            }
+            Object retVal;
+            try{
+                retVal = theMethod.invoke(obj, args);
+            } catch (Exception e)
+            {
+                throw new OOPInaccessibleMethod();
+            }
+            return retVal;
         } else {
             if (compatiableMethods.size() == 0) {
                 throw new OOPInaccessibleMethod();
@@ -81,7 +107,6 @@ public class OOPMultipleControl {
             }
             throw new OOPCoincidentalAmbiguity(clashingSet);
         }
-
     }
 
     //TODO: add more of your code :
