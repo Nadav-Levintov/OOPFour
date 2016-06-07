@@ -24,103 +24,127 @@ public class OOPMultipleControl {
 
     //TODO: fill in here :
     public void validateInheritanceTree() throws OOPMultipleException {
-       validateAux(interfaceClass);
+        validateAux(interfaceClass);
     }
 
     //TODO: fill in here :
     public Object invoke(String methodName, Object[] args)
             throws OOPMultipleException {
         Method[] methods = interfaceClass.getMethods();
-        List<Method> compatiableMethods = new LinkedList<Method>();
+        Method theMethod;
         int argsLength = 0;
         if (args != null) {
             argsLength = args.length;
         }
+
+        //Create an array of the parameters classes
         Class[] paramTypes = new Class<?>[argsLength];
         for (int i = 0; i < argsLength; i++) {
             paramTypes[i] = args[i].getClass();
         }
 
+        //Create a list of functions with same name as the method we look for
+        List<Method> sameNameMethods = new LinkedList<>();
         for (Method aMethod : methods
                 ) {
-            if (aMethod.getName().equals(methodName) &&
-                    Arrays.equals(paramTypes, aMethod.getParameterTypes())) {
-                compatiableMethods.add(aMethod);
+            if (aMethod.getName().equals(methodName)) {
+                sameNameMethods.add(aMethod);
             }
         }
-        if (compatiableMethods.size() == 1) {
-            Method theMethod = compatiableMethods.get(0);
-            OOPModifier methodMod = theMethod.getAnnotation(OOPMethod.class).modifier();
-            if (methodMod.equals(OOPModifier.PRIVATE)) {
-                throw new OOPInaccessibleMethod();
-            }
-            if (methodMod.equals(OOPModifier.DEFAULT)) {
-                Package pkg = theMethod.getDeclaringClass().getPackage();
-                if (checkPackage(interfaceClass, pkg, theMethod.getDeclaringClass())) {
-                    throw new OOPInaccessibleMethod();
-                }
 
-            }
-
-            String interfaceName = theMethod.getDeclaringClass().getName();
-            int lastDot = interfaceName.lastIndexOf('.');
-            String clsName = interfaceName.substring(0, lastDot + 1) + "C" + interfaceName.substring(lastDot + 2, interfaceName.length());
-            Class<?> cls;
-            try {
-                cls = Class.forName(clsName);
-            } catch (ClassNotFoundException e)
-            {
-                throw new OOPInaccessibleMethod();
-            }
-            Constructor<?> constr;
-            try {
-                constr = cls.getConstructor();
-            } catch (NoSuchMethodException e)
-            {
-                throw new OOPInaccessibleMethod();
-            }
-            Object obj;
-            try{
-                obj = constr.newInstance(new Object[]{});
-            }
-            catch(Exception e)
-            {
-                throw new OOPInaccessibleMethod();
-            }
-            Object retVal;
-            try{
-                retVal = theMethod.invoke(obj, args);
-            } catch (Exception e)
-            {
-                throw new OOPInaccessibleMethod();
-            }
-            return retVal;
-        } else {
-            if (compatiableMethods.size() == 0) {
-                throw new OOPInaccessibleMethod();
-            }
-
+        //In case there is more than one method
+        if(sameNameMethods.size()>1) {
             List<Pair<Class<?>, Method>> clashingSet = new LinkedList<Pair<Class<?>, Method>>();
-            for (Method aMethod : compatiableMethods) {
+            for (Method aMethod : sameNameMethods) {
                 Pair<Class<?>, Method> pair = new Pair<Class<?>, Method>(aMethod.getDeclaringClass(), aMethod);
                 clashingSet.add(pair);
             }
             throw new OOPCoincidentalAmbiguity(clashingSet);
         }
+
+        //In case no method found
+        if(sameNameMethods.size()==0) {
+            throw new OOPInaccessibleMethod();
+        }
+
+        //Check if method is legal
+        theMethod = sameNameMethods.get(0);
+        if(!checkMethod(theMethod,paramTypes)) {
+            throw new OOPInaccessibleMethod();
+        }
+
+        return invokeAux(theMethod, args);
+
     }
 
+
+
     //TODO: add more of your code :
-    public Boolean checkPackage(Class<?> cls, Package pkg, Class<?> parent) {
-        if (cls.getPackage().equals(pkg)) {
-            List<Class<?>> methodsClass = new LinkedList<Class<?>>();
-            Class<?>[] parents = cls.getInterfaces();
-            for (Class cl : parents) {
-                if (parent.isAssignableFrom(cl)) {
-                    return checkPackage(cl, pkg, parent);
-                }
+    public Object invokeAux(Method theMethod, Object[] args) throws OOPMultipleException {
+            String interfaceName = theMethod.getDeclaringClass().getName();
+            int lastDot = interfaceName.lastIndexOf('.');
+            String clsName = interfaceName.substring(0, lastDot + 1) + "C" + interfaceName.substring(lastDot + 2, interfaceName.length());
+            Class<?> cls;
+            Constructor<?> constr;
+            Object obj;
+            Object retVal;
+            try {
+                cls = Class.forName(clsName);
+                constr = cls.getConstructor();
+                obj = constr.newInstance(new Object[]{});
+                retVal = theMethod.invoke(obj, args);
+            } catch (Exception e) {
+                throw new OOPInaccessibleMethod();
+            }
+            return retVal;
+    }
+
+    public Boolean checkDefaultPackage(Package pkg, Method aMethod, Class<?> current) {
+        if(!current.getPackage().equals(pkg))
+        {
+            return false;
+        }
+
+        Class<?>[] parentInterfaces = current.getInterfaces();
+        if(current.equals(aMethod.getDeclaringClass()))
+        {
+            return true;
+        }
+
+        List<Class<?>> potential = new LinkedList<>();
+        for (int i=0;i<parentInterfaces.length;i++)
+        {
+            if (aMethod.getDeclaringClass().isAssignableFrom(parentInterfaces[i]))
+            {
+                potential.add(parentInterfaces[i]);
             }
         }
-        return false;
+        Boolean retVal = false;
+        if(potential.size()>0)
+        {
+            for (Class<?> inter:potential ) {
+                if(!retVal && checkDefaultPackage(pkg,aMethod,inter))
+                {
+                    retVal=true;
+                }
+
+            }
+        }
+        return retVal;
+    }
+
+    public Boolean typeArrayCheck(Class<?>[] currentMArray, Class<?>[] testedMArray) {
+        if (currentMArray.length != testedMArray.length) {
+            return false;
+        }
+
+        int size = currentMArray.length;
+        for (int i = 0; i < size; i++) {
+            if (!currentMArray[i].isAssignableFrom(testedMArray[i])) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public List<Method> validateAux(Class<?> current) throws OOPMultipleException {
@@ -157,7 +181,7 @@ public class OOPMultipleControl {
         for (Method currentMethod : currentMethods) {
             for (Method existingMethod : methodList) {
                 if (methodCompare(existingMethod, currentMethod)) {
-                    checkInharent(existingMethod, currentMethod,current);
+                    checkInharent(existingMethod, currentMethod, current);
                     checkAnnotationsPermission(existingMethod, currentMethod);
                 }
             }
@@ -200,6 +224,31 @@ public class OOPMultipleControl {
                 Arrays.equals(m1.getParameterTypes(), m2.getParameterTypes())
                /*&& m1.getReturnType().equals(m2.getReturnType())*/;
     }
+
+    public Boolean checkMethod(Method aMethod, Class[] paramTypes){
+
+        if (!(aMethod.getName().equals(aMethod.getName()) &&
+                (Arrays.equals(paramTypes, aMethod.getParameterTypes()) ||
+                        (typeArrayCheck(aMethod.getParameterTypes(), paramTypes)))))
+        {
+            return false;
+        }
+
+        if(aMethod.getAnnotation(OOPMethod.class).modifier().equals(OOPModifier.DEFAULT))
+        {
+            Package pkg = aMethod.getDeclaringClass().getPackage();
+            if(!checkDefaultPackage(pkg,aMethod,interfaceClass))
+            {
+                return false;
+            }
+        }
+        if (aMethod.getAnnotation(OOPMethod.class).modifier().equals(OOPModifier.PRIVATE)) {
+            return false;
+        }
+
+        return true;
+    }
+
     //TODO: DO NOT CHANGE !!!!!!
 
     public void removeSourceFile() {
