@@ -24,7 +24,7 @@ public class OOPMultipleControl {
 
     //TODO: fill in here :
     public void validateInheritanceTree() throws OOPMultipleException {
-       validateAux(interfaceClass);
+        validateAux(interfaceClass);
     }
 
     //TODO: fill in here :
@@ -40,6 +40,22 @@ public class OOPMultipleControl {
         for (int i = 0; i < argsLength; i++) {
             paramTypes[i] = args[i].getClass();
         }
+        List<Method> sameNameMethods = new LinkedList<Method>();
+        for (Method aMethod : methods
+                ) {
+            if (aMethod.getName().equals(methodName)) {
+                sameNameMethods.add(aMethod);
+            }
+        }
+        if(sameNameMethods.size()>1)
+        {
+            List<Pair<Class<?>, Method>> clashingSet = new LinkedList<Pair<Class<?>, Method>>();
+            for (Method aMethod : sameNameMethods) {
+                Pair<Class<?>, Method> pair = new Pair<Class<?>, Method>(aMethod.getDeclaringClass(), aMethod);
+                clashingSet.add(pair);
+            }
+            throw new OOPCoincidentalAmbiguity(clashingSet);
+        }
 
         for (Method aMethod : methods
                 ) {
@@ -48,6 +64,36 @@ public class OOPMultipleControl {
                 compatiableMethods.add(aMethod);
             }
         }
+
+        for (Method aMethod:compatiableMethods) {
+            if(aMethod.getAnnotation(OOPMethod.class).modifier().equals(OOPModifier.DEFAULT))
+            {
+                Package pkg = aMethod.getDeclaringClass().getPackage();
+                if(!checkDefaultPackage(pkg,aMethod,interfaceClass))
+                {
+                    compatiableMethods.remove(aMethod);
+                }
+            }
+
+        }
+        if (compatiableMethods.size() == 0) {
+            for (Method aMethod : methods
+                    ) {
+                if (aMethod.getName().equals(methodName) &&
+                        typeArrayCheck(aMethod.getParameterTypes(), paramTypes)) {
+                    compatiableMethods.add(aMethod);
+                }
+            }
+            return invokeAux(compatiableMethods, args);
+
+        }
+        return invokeAux(compatiableMethods, args);
+
+
+    }
+
+    //TODO: add more of your code :
+    public Object invokeAux(List<Method> compatiableMethods, Object[] args) throws OOPMultipleException {
         if (compatiableMethods.size() == 1) {
             Method theMethod = compatiableMethods.get(0);
             OOPModifier methodMod = theMethod.getAnnotation(OOPMethod.class).modifier();
@@ -68,30 +114,33 @@ public class OOPMultipleControl {
             Class<?> cls;
             try {
                 cls = Class.forName(clsName);
-            } catch (ClassNotFoundException e)
-            {
+            } catch (ClassNotFoundException e) {
                 throw new OOPInaccessibleMethod();
             }
             Constructor<?> constr;
             try {
                 constr = cls.getConstructor();
-            } catch (NoSuchMethodException e)
-            {
+            } catch (NoSuchMethodException e) {
                 throw new OOPInaccessibleMethod();
             }
             Object obj;
-            try{
+            try {
                 obj = constr.newInstance(new Object[]{});
-            }
-            catch(Exception e)
-            {
+            } catch (Exception e) {
                 throw new OOPInaccessibleMethod();
             }
             Object retVal;
-            try{
-                retVal = theMethod.invoke(obj, args);
-            } catch (Exception e)
+            if(theMethod.getAnnotation(OOPMethod.class).modifier().equals(OOPModifier.DEFAULT))
             {
+                Package declaringPkg = theMethod.getDeclaringClass().getPackage();
+                if(!checkDefaultPackage(declaringPkg,theMethod,interfaceClass))
+                {
+                   throw new OOPInaccessibleMethod();
+                }
+            }
+            try {
+                retVal = theMethod.invoke(obj, args);
+            } catch (Exception e) {
                 throw new OOPInaccessibleMethod();
             }
             return retVal;
@@ -99,6 +148,7 @@ public class OOPMultipleControl {
             if (compatiableMethods.size() == 0) {
                 throw new OOPInaccessibleMethod();
             }
+
 
             List<Pair<Class<?>, Method>> clashingSet = new LinkedList<Pair<Class<?>, Method>>();
             for (Method aMethod : compatiableMethods) {
@@ -108,8 +158,55 @@ public class OOPMultipleControl {
             throw new OOPCoincidentalAmbiguity(clashingSet);
         }
     }
+    public Boolean checkDefaultPackage(Package pkg, Method aMethod, Class<?> current)
+    {
+        if(!current.getPackage().equals(pkg))
+        {
+            return false;
+        }
 
-    //TODO: add more of your code :
+        Class<?>[] parentInterfaces = current.getInterfaces();
+        if(current.equals(aMethod.getDeclaringClass()))
+        {
+            return true;
+        }
+
+        List<Class<?>> potential = new LinkedList<>();
+        for (int i=0;i<parentInterfaces.length;i++)
+        {
+            if (aMethod.getDeclaringClass().isAssignableFrom(parentInterfaces[i]))
+            {
+                potential.add(parentInterfaces[i]);
+            }
+        }
+        Boolean retVal = false;
+        if(potential.size()>0)
+        {
+            for (Class<?> inter:potential ) {
+                if(!retVal && checkDefaultPackage(pkg,aMethod,inter))
+                {
+                    retVal=true;
+                }
+
+            }
+        }
+        return retVal;
+    }
+    public Boolean typeArrayCheck(Class<?>[] currentMArray, Class<?>[] testedMArray) {
+        if (currentMArray.length != testedMArray.length) {
+            return false;
+        }
+
+        int size = currentMArray.length;
+        for (int i = 0; i < size; i++) {
+            if (!currentMArray[i].isAssignableFrom(testedMArray[i])) {
+                return false;
+            }
+        }
+        return true;
+
+    }
+
     public Boolean checkPackage(Class<?> cls, Package pkg, Class<?> parent) {
         if (cls.getPackage().equals(pkg)) {
             List<Class<?>> methodsClass = new LinkedList<Class<?>>();
@@ -157,7 +254,7 @@ public class OOPMultipleControl {
         for (Method currentMethod : currentMethods) {
             for (Method existingMethod : methodList) {
                 if (methodCompare(existingMethod, currentMethod)) {
-                    checkInharent(existingMethod, currentMethod,current);
+                    checkInharent(existingMethod, currentMethod, current);
                     checkAnnotationsPermission(existingMethod, currentMethod);
                 }
             }
